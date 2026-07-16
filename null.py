@@ -3,9 +3,10 @@
 # ============================================================
 #           NULLSCRIPT - VERSÃO PYTHON COMPLETA
 #           "Programação para humanos"
+#           Versão: 4.0.0
 # ============================================================
 #  Como usar:
-#    python nullscript.py arquivo.ns
+#    python null.py arquivo.ns
 #    nullscript arquivo.ns
 #    ns arquivo.ns
 # ============================================================
@@ -36,10 +37,10 @@ from typing import Any, Dict, List, Optional, Union, Callable
 #              CONFIGURAÇÃO
 # ============================================================
 
-VERSAO = "3.0.0"
+VERSAO = "4.0.0"
 NOME = "NullScript"
 AUTOR = "mateusgataolindaomateusgatao-create"
-REPOSITORIO = "https://github.com/mateusgataolindaomateusgatao-create/nullscript-python"
+REPOSITORIO = "https://github.com/mateusgataolindaomateusgatao-create/nullscript"
 
 # Cores para terminal
 CORES = {
@@ -55,6 +56,10 @@ CORES = {
     'reset': '\033[0m'
 }
 
+def cor(texto: str, cor: str = 'branco') -> str:
+    """Aplica cor ao texto"""
+    return f"{CORES.get(cor, '')}{texto}{CORES.get('reset', '')}"
+
 # ============================================================
 #              CLASSE IA (CORRETORAUTO)
 # ============================================================
@@ -69,57 +74,124 @@ class CorretorAuto:
         self.estilo = None
         self.historico = []
         self.cache = {}
+        self.erros_detectados = []
     
     def corrigir(self, codigo: str) -> str:
         """Corrige código NullScript automaticamente"""
-        # Correções básicas
+        original = codigo
+        erros = []
+        
+        # 1. Correções básicas de palavras-chave
         substituicoes = {
             'if': 'se',
             'else': 'senao',
+            'elif': 'senao se',
             'while': 'enquanto',
             'for': 'para',
             'function': 'funcao',
+            'def': 'funcao',
             'return': 'retorne',
             'true': 'verdadeiro',
             'false': 'falso',
             'null': 'vazio',
             'undefined': 'indefinido',
             'print': 'exibir',
-            'input': 'perguntar'
+            'input': 'perguntar',
+            'len': 'tamanho',
+            'append': 'adicionar',
+            'pop': 'remover_ultimo'
         }
         
         for antigo, novo in substituicoes.items():
-            codigo = re.sub(rf'\b{antigo}\b', novo, codigo, flags=re.IGNORECASE)
+            padrao = rf'\b{antigo}\b'
+            if re.search(padrao, codigo, re.IGNORECASE):
+                codigo = re.sub(padrao, novo, codigo, flags=re.IGNORECASE)
+                erros.append(f"Palavra-chave '{antigo}' corrigida para '{novo}'")
         
-        # Corrigir estruturas não fechadas
+        # 2. Corrigir estruturas não fechadas
         se_count = len(re.findall(r'\bse\b', codigo, re.IGNORECASE))
         fim_count = len(re.findall(r'\bfim\b', codigo, re.IGNORECASE))
         if se_count > fim_count:
             codigo += '\nFim'
+            erros.append(f"Adicionado 'Fim' para fechar estrutura")
         
+        # 3. Corrigir aspas em exibir
+        def corrigir_exibir(match):
+            conteudo = match.group(1).strip()
+            # Se não tiver aspas, adicionar
+            if not (conteudo.startswith('"') or conteudo.startswith("'")):
+                return f'exibir: "{conteudo}"'
+            return match.group(0)
+        
+        codigo = re.sub(r'exibir\s*:\s*([^"\'\n]+)', corrigir_exibir, codigo, flags=re.IGNORECASE)
+        
+        # 4. Corrigir chamadas de função sem nome
+        padrao_funcao = r'(\w+)\(\)'
+        if re.search(padrao_funcao, codigo):
+            # Verificar se a função existe
+            pass
+        
+        # 5. Corrigir variáveis não declaradas
+        variaveis_uso = re.findall(r'\b(\w+)\s*=', codigo)
+        variaveis_decl = re.findall(r'(?:crie|criar|var|let)\s+(\w+)', codigo, re.IGNORECASE)
+        
+        for var in set(variaveis_uso) - set(variaveis_decl):
+            if var not in ['se', 'senao', 'enquanto', 'para', 'funcao', 'retorne', 'exibir', 'perguntar']:
+                erros.append(f"Variável '{var}' não declarada")
+        
+        # 6. Verificar indentação
+        linhas = codigo.split('\n')
+        indentacao_ok = True
+        for i, linha in enumerate(linhas):
+            if linha.strip() and not linha.startswith(' ' * 4) and 'se' in linha.lower():
+                if i + 1 < len(linhas) and linhas[i+1].strip() and not linhas[i+1].startswith(' ' * 4):
+                    erros.append(f"Linha {i+1}: falta indentação")
+                    indentacao_ok = False
+        
+        # 7. Recomendar boas práticas
+        if 'exibir' in codigo.lower() and '"' not in codigo and "'" not in codigo:
+            erros.append("Recomendação: Use aspas em exibir: exibir: 'texto'")
+        
+        self.erros_detectados = erros
         return codigo
     
     def explicar(self, codigo: str) -> str:
         """Explica o código em linguagem natural"""
         explicacao = []
-        explicacao.append("📖 EXPLICAÇÃO DO CÓDIGO")
-        explicacao.append("=" * 50)
+        explicacao.append(cor("📖 EXPLICAÇÃO DO CÓDIGO", "azul"))
+        explicacao.append(cor("=" * 50, "ciano"))
         
         # Análise básica
         linhas = codigo.split('\n')
         funcoes = re.findall(r'funcao\s+(\w+)', codigo)
         variaveis = re.findall(r'(\w+)\s*=', codigo)
+        imports = re.findall(r'importar\s+(\w+)', codigo)
         
-        explicacao.append(f"📊 Total de linhas: {len(linhas)}")
-        explicacao.append(f"📦 Funções: {', '.join(funcoes) if funcoes else 'Nenhuma'}")
-        explicacao.append(f"📦 Variáveis: {', '.join(set(variaveis)) if variaveis else 'Nenhuma'}")
+        explicacao.append(cor(f"📊 Total de linhas: {len(linhas)}", "branco"))
+        if funcoes:
+            explicacao.append(cor(f"📦 Funções: {', '.join(funcoes)}", "verde"))
+        if variaveis:
+            explicacao.append(cor(f"📦 Variáveis: {', '.join(set(variaveis))}", "amarelo"))
+        if imports:
+            explicacao.append(cor(f"📦 Importações: {', '.join(imports)}", "roxo"))
         
+        # Detectar estruturas
+        estruturas = []
         if 'se' in codigo.lower():
-            explicacao.append("🔀 Contém estrutura condicional (se/senao)")
+            estruturas.append("Condicional (se/senao)")
         if 'enquanto' in codigo.lower():
-            explicacao.append("🔄 Contém loop (enquanto)")
+            estruturas.append("Loop (enquanto)")
         if 'para' in codigo.lower():
-            explicacao.append("🔄 Contém loop (para)")
+            estruturas.append("Loop (para)")
+        if 'funcao' in codigo.lower():
+            estruturas.append("Funções")
+        
+        if estruturas:
+            explicacao.append(cor(f"🔧 Estruturas: {', '.join(estruturas)}", "ciano"))
+        
+        # Análise de qualidade
+        if len(linhas) > 50:
+            explicacao.append(cor("💡 Sugestão: Código longo, considere dividir em funções", "amarelo"))
         
         return '\n'.join(explicacao)
     
@@ -134,8 +206,8 @@ class CorretorAuto:
             codigo.extend([
                 "funcao calculadora() {",
                 "    exibir: '🧮 CALCULADORA'",
-                "    a = numero(perguntar('Primeiro número: '))",
-                "    b = numero(perguntar('Segundo número: '))",
+                "    a = perguntar('Primeiro número: ')",
+                "    b = perguntar('Segundo número: ')",
                 "    op = perguntar('Operação (+, -, *, /): ')",
                 "    resultado = 0",
                 "    escolha op",
@@ -165,6 +237,7 @@ class CorretorAuto:
                 "    campos: ['nome', 'email', 'idade']",
                 "})",
                 "",
+                "exibir: '🚀 API gerada com sucesso!'",
                 "Rede.servidor(3000).iniciar()"
             ])
         else:
@@ -172,7 +245,7 @@ class CorretorAuto:
                 "funcao main() {",
                 "    exibir: '🚀 Olá mundo!'",
                 "    nome = perguntar('Qual seu nome? ')",
-                "    exibir: 'Olá, ' + nome + '!'",
+                "    exibir: 'Olá, ' + nome + '! Bem-vindo ao NullScript!'",
                 "}",
                 "",
                 "main()"
@@ -199,7 +272,9 @@ class CorretorAuto:
                 'enquanto': len(re.findall(r'\benquanto\b', codigo, re.IGNORECASE)),
                 'para': len(re.findall(r'\bpara\b', codigo, re.IGNORECASE)),
                 'funcao': len(re.findall(r'\bfuncao\b', codigo, re.IGNORECASE))
-            }
+            },
+            'variaveis': list(set(re.findall(r'(\w+)\s*=', codigo))),
+            'importacoes': re.findall(r'importar\s+(\w+)', codigo)
         }
         
         # Verificar estruturas não fechadas
@@ -208,13 +283,30 @@ class CorretorAuto:
         if se_count > fim_count:
             analise['erros'].append(f"Faltam {se_count - fim_count} 'Fim'")
         
+        # Verificar variáveis não declaradas
+        variaveis_uso = re.findall(r'\b(\w+)\s*=', codigo)
+        variaveis_decl = re.findall(r'(?:crie|criar|var|let)\s+(\w+)', codigo, re.IGNORECASE)
+        for var in set(variaveis_uso) - set(variaveis_decl):
+            if var not in ['se', 'senao', 'enquanto', 'para', 'funcao', 'retorne', 'exibir', 'perguntar', 'importar']:
+                analise['avisos'].append(f"Variável '{var}' não declarada")
+        
         # Verificar comentários
         if '//' not in codigo and '#' not in codigo:
-            analise['sugestoes'].append('Adicione comentários')
+            analise['sugestoes'].append('Adicione comentários para melhor legibilidade')
         
         # Verificar boas práticas
         if '==' in codigo and '===' not in codigo:
             analise['avisos'].append('Use "===" para comparações estritas')
+        
+        if len(codigo.split('\n')) > 50:
+            analise['sugestoes'].append('Considere dividir o código em funções menores')
+        
+        # Verificar indentação
+        linhas = codigo.split('\n')
+        for i, linha in enumerate(linhas):
+            if linha.strip() and not linha.startswith(' ' * 4) and 'se' in linha.lower():
+                if i + 1 < len(linhas) and linhas[i+1].strip() and not linhas[i+1].startswith(' ' * 4):
+                    analise['sugestoes'].append(f'Linha {i+1}: use indentação de 4 espaços')
         
         # Calcular métricas
         analise['qualidade'] = min(10, 10 - len(analise['erros']) - len(analise['avisos']) * 0.5)
@@ -229,6 +321,8 @@ class CorretorAuto:
         """Responde perguntas sobre programação"""
         respostas = {
             'como faço para': 'Você pode usar o comando...',
+            'como criar': 'Use "crie variável, nome X, valor Y"',
+            'como fazer': 'Descreva o que quer e use "Preguiçoso.fazer()"',
             'erro': 'Verifique a sintaxe. Use "Se:", "Enquanto:", etc.',
             'função': 'Use "funcao nome(parametros) { ... }"',
             'variável': 'Use "crie variável, nome X, valor Y"',
@@ -238,6 +332,7 @@ class CorretorAuto:
             'loop': 'Use "Enquanto: condicao" ou "Para i de 1 ate 10"',
             'api': 'Use "importar biblioteca Auto" e "Auto.criar_api()"',
             'arquivo': 'Use "importar biblioteca Arquivos"',
+            'aspas': 'As aspas são opcionais, mas recomendadas para clareza'
         }
         
         for chave, resposta in respostas.items():
@@ -254,6 +349,7 @@ class CorretorAuto:
         # Simplificar
         otimizado = re.sub(r'se\s+\(', 'se ', otimizado)
         otimizado = re.sub(r'enquanto\s+\(', 'enquanto ', otimizado)
+        otimizado = re.sub(r'para\s+\(', 'para ', otimizado)
         return otimizado
     
     def completar(self, codigo: str) -> str:
@@ -261,6 +357,8 @@ class CorretorAuto:
         if 'funcao' in codigo and '{' in codigo and '}' not in codigo:
             return codigo + '\n    // TODO: Implementar lógica\n    retorne null\n}'
         if 'se' in codigo.lower() and 'fim' not in codigo.lower():
+            return codigo + '\n    // TODO: Adicionar lógica\nFim'
+        if 'enquanto' in codigo.lower() and 'fim' not in codigo.lower():
             return codigo + '\n    // TODO: Adicionar lógica\nFim'
         return codigo
 
@@ -287,7 +385,10 @@ class NullScriptInterpreter:
         self.retorno_atual = None
         self.pausado = False
         self.bibliotecas = {}
+        self.loops_ativos = []
+        self.erros_encontrados = []
         self.carregar_bibliotecas()
+        self.modo_silencioso = False
     
     def carregar_bibliotecas(self):
         """Carrega bibliotecas nativas"""
@@ -330,6 +431,9 @@ class NullScriptInterpreter:
                 'maximo': max,
                 'minimo': min,
                 'media': lambda *args: sum(args) / len(args) if args else 0,
+                'mediana': lambda *args: (lambda s: s[len(s)//2] if len(s)%2 else (s[len(s)//2-1] + s[len(s)//2])/2)(sorted(args)),
+                'moda': lambda *args: max(set(args), key=args.count) if args else None,
+                'desvio_padrao': lambda *args: (lambda m: (sum((x-m)**2 for x in args)/len(args))**0.5)(sum(args)/len(args)) if args else 0,
             },
             
             # Arquivos
@@ -337,45 +441,70 @@ class NullScriptInterpreter:
                 'ler': lambda p: open(p, 'r', encoding='utf-8').read(),
                 'ler_linhas': lambda p: open(p, 'r', encoding='utf-8').read().split('\n'),
                 'ler_json': lambda p: json.load(open(p, 'r', encoding='utf-8')),
+                'ler_csv': lambda p: [line.strip().split(',') for line in open(p, 'r', encoding='utf-8').readlines()],
                 'escrever': lambda p, c: open(p, 'w', encoding='utf-8').write(c),
+                'escrever_linhas': lambda p, l: open(p, 'w', encoding='utf-8').write('\n'.join(l)),
+                'escrever_json': lambda p, d: open(p, 'w', encoding='utf-8').write(json.dumps(d, indent=2)),
                 'adicionar': lambda p, c: open(p, 'a', encoding='utf-8').write(c),
                 'existe': os.path.exists,
                 'deletar': os.remove,
                 'copiar': shutil.copy2,
                 'mover': shutil.move,
                 'listar': os.listdir,
+                'listar_recursivo': lambda p: [str(f) for f in Path(p).rglob('*') if f.is_file()],
                 'criar_pasta': lambda p: os.makedirs(p, exist_ok=True),
                 'deletar_pasta': lambda p: shutil.rmtree(p),
+                'tamanho': lambda p: os.path.getsize(p),
+                'data_modificacao': lambda p: datetime.datetime.fromtimestamp(os.path.getmtime(p)).isoformat(),
+                'caminho_absoluto': os.path.abspath,
+                'nome_arquivo': os.path.basename,
+                'extensao': lambda p: os.path.splitext(p)[1],
+                'diretorio': os.path.dirname,
             },
             
             # Sistema
             'Sistema': {
                 'executar': lambda cmd: subprocess.run(cmd, shell=True, capture_output=True, text=True),
+                'executar_saida': lambda cmd: subprocess.check_output(cmd, shell=True, text=True),
                 'info': lambda: {
                     'hostname': socket.gethostname(),
                     'platform': platform.system(),
                     'arch': platform.machine(),
                     'cpus': os.cpu_count(),
                     'python': sys.version,
-                    'cwd': os.getcwd()
+                    'cwd': os.getcwd(),
+                    'user': os.getenv('USER', os.getenv('USERNAME', 'unknown')),
                 },
                 'limpar': lambda: os.system('clear' if os.name == 'posix' else 'cls'),
                 'sair': sys.exit,
+                'pid': os.getpid,
+                'variavel_ambiente': os.getenv,
+                'definir_variavel': os.putenv,
+                'pasta_atual': os.getcwd,
+                'mudar_pasta': os.chdir,
             },
             
             # Rede
             'Rede': {
                 'get': lambda url: urllib.request.urlopen(url).read().decode('utf-8'),
+                'get_json': lambda url: json.loads(urllib.request.urlopen(url).read().decode('utf-8')),
                 'ip': lambda: socket.gethostbyname(socket.gethostname()),
+                'ip_publico': lambda: urllib.request.urlopen('https://api.ipify.org').read().decode('utf-8'),
                 'ping': lambda host: os.system(f'ping -c 1 {host}') == 0,
+                'dns': lambda host: socket.gethostbyname(host),
+                'porta_aberta': lambda host, port: socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex((host, port)) == 0,
             },
             
             # Criptografia
             'Criptografia': {
                 'md5': lambda d: hashlib.md5(str(d).encode()).hexdigest(),
+                'sha1': lambda d: hashlib.sha1(str(d).encode()).hexdigest(),
                 'sha256': lambda d: hashlib.sha256(str(d).encode()).hexdigest(),
                 'sha512': lambda d: hashlib.sha512(str(d).encode()).hexdigest(),
                 'gerar_token': lambda t=32: os.urandom(t).hex(),
+                'gerar_token_base64': lambda t=32: os.urandom(t).hex(),
+                'base64': lambda d: __import__('base64').b64encode(str(d).encode()).decode(),
+                'base64_decodificar': lambda d: __import__('base64').b64decode(d).decode(),
             },
             
             # Testes
@@ -383,6 +512,10 @@ class NullScriptInterpreter:
                 'testar': lambda desc, fn: (print(f'\n🧪 Teste: {desc}'), fn(), print('✅ PASSED'))[1] if True else None,
                 'afirmar': lambda cond, msg=None: (lambda: None) if cond else (lambda: (_ for _ in ()).throw(Exception(msg or 'Assertion failed')))(),
                 'afirmar_igual': lambda a, b, msg=None: (lambda: None) if a == b else (lambda: (_ for _ in ()).throw(Exception(msg or f'{a} != {b}')))(),
+                'afirmar_diferente': lambda a, b, msg=None: (lambda: None) if a != b else (lambda: (_ for _ in ()).throw(Exception(msg or f'{a} == {b}')))(),
+                'afirmar_contem': lambda lista, item, msg=None: (lambda: None) if item in lista else (lambda: (_ for _ in ()).throw(Exception(msg or f'{item} não encontrado')))(),
+                'afirmar_tipo': lambda valor, tipo, msg=None: (lambda: None) if type(valor).__name__ == tipo else (lambda: (_ for _ in ()).throw(Exception(msg or f'Tipo esperado: {tipo}, recebido: {type(valor).__name__}')))(),
+                'suite': lambda nome, testes: (print(f'\n📋 Suite: {nome}'), [(print(f'  {desc}: {"✅" if fn() else "❌"}') for desc, fn in testes.items())])[1],
             },
             
             # Facil - Operações Facilitadas
@@ -392,10 +525,21 @@ class NullScriptInterpreter:
                 'moda': lambda lista: max(set(lista), key=lista.count) if lista else None,
                 'desvio_padrao': lambda lista: (lambda m: (sum((x-m)**2 for x in lista)/len(lista))**0.5)(sum(lista)/len(lista)) if lista else 0,
                 'ordenar': lambda lista: sorted(lista),
+                'ordenar_desc': lambda lista: sorted(lista, reverse=True),
                 'buscar': lambda lista, valor: lista.index(valor) if valor in lista else -1,
-                'ler_csv': lambda p: [line.strip().split(',') for line in open(p, 'r').readlines()],
-                'ler_json': lambda p: json.load(open(p, 'r')),
-                'sentimentar': lambda texto: 'positivo' if sum(1 for p in ['bom','ótimo','excelente'] if p in texto.lower()) > sum(1 for n in ['ruim','péssimo','horrível'] if n in texto.lower()) else 'negativo' if sum(1 for n in ['ruim','péssimo','horrível'] if n in texto.lower()) > 0 else 'neutro',
+                'buscar_todos': lambda lista, valor: [i for i, v in enumerate(lista) if v == valor],
+                'agrupar': lambda lista, campo: (lambda: (_ for _ in ()).throw(Exception('Agrupar requer lista de dicionários')))(),
+                'ler_csv': lambda p: [line.strip().split(',') for line in open(p, 'r', encoding='utf-8').readlines()],
+                'ler_json': lambda p: json.load(open(p, 'r', encoding='utf-8')),
+                'ler_xml': lambda p: (lambda: (_ for _ in ()).throw(Exception('XML parsing não implementado')))(),
+                'tokenizar': lambda texto: texto.split(),
+                'remover_stopwords': lambda texto: ' '.join([p for p in texto.split() if p.lower() not in ['a','o','e','de','que','do','da','em','com','para','por','um','uma','as','os']]),
+                'sentimentar': lambda texto: 'positivo' if sum(1 for p in ['bom','ótimo','excelente','maravilhoso','feliz','amor'] if p in texto.lower()) > sum(1 for n in ['ruim','péssimo','horrível','triste','raiva','ódio'] if n in texto.lower()) else 'negativo' if sum(1 for n in ['ruim','péssimo','horrível','triste','raiva','ódio'] if n in texto.lower()) > 0 else 'neutro',
+                'resumir': lambda texto, tamanho=100: texto[:tamanho] + '...' if len(texto) > tamanho else texto,
+                'contar_palavras': lambda texto: len(texto.split()),
+                'contar_caracteres': lambda texto: len(texto),
+                'contar_linhas': lambda texto: len(texto.split('\n')),
+                'slug': lambda texto: re.sub(r'[^a-z0-9]+', '-', texto.lower().strip()),
             },
             
             # Preguiçoso - IA que completa
@@ -404,22 +548,136 @@ class NullScriptInterpreter:
                 'completar': self.ia.completar,
                 'otimizar': self.ia.otimizar,
                 'explicar': self.ia.explicar,
+                'corrigir': self.ia.corrigir,
+                'analisar': self.ia.analisar,
             },
             
             # Auto - Automatização
             'Auto': {
-                'criar_api': lambda config: f"// API {config.get('nome', 'recurso')}\n# Implementação gerada automaticamente",
-                'criar_crud': lambda nome, campos: f"// CRUD {nome}\n# Implementação gerada automaticamente",
-                'criar_jogo': lambda tipo: "// Jogo gerado\nimportar biblioteca Jogo\n\njogo = Jogo.criar(800, 600, 'Meu Jogo')\nJogo.iniciar(jogo)",
-                'criar_site': lambda config: "// Site gerado\nimportar biblioteca Web\n\nWeb.servidor(3000).iniciar()",
+                'criar_api': lambda config: f"""// API {config.get('nome', 'recurso')}
+importar biblioteca Rede
+
+dados_{config.get('nome', 'recurso')} = []
+
+Rede.rota("/{config.get('nome', 'recurso')}", (req, res) => {{
+    res.json({{ dados: dados_{config.get('nome', 'recurso')} }})
+}})
+
+Rede.rota("/{config.get('nome', 'recurso')}/criar", (req, res) => {{
+    const item = req.corpo
+    dados_{config.get('nome', 'recurso')}.adicionar(item)
+    res.json({{ mensagem: "Criado", item }})
+}})
+
+Rede.servidor(3000).iniciar()
+exibir: '🚀 API rodando em http://localhost:3000'
+""",
+                'criar_crud': lambda nome, campos: f"""// CRUD {nome}
+dados_{nome} = []
+
+funcao criar_{nome}({', '.join(campos)}) {{
+    const item = {{ {', '.join([f'{c}: {c}' for c in campos])} }}
+    dados_{nome}.adicionar(item)
+    retorne item
+}}
+
+funcao listar_{nome}() {{
+    retorne dados_{nome}
+}}
+
+funcao atualizar_{nome}(id, {', '.join(campos)}) {{
+    const item = dados_{nome}[id]
+    {chr(10).join([f'    item.{c} = {c}' for c in campos])}
+    retorne item
+}}
+
+funcao deletar_{nome}(id) {{
+    dados_{nome}.remover_posicao(id)
+    retorne verdadeiro
+}}
+""",
+                'criar_jogo': lambda tipo: f"""// Jogo {tipo}
+importar biblioteca Jogo
+
+jogo = Jogo.criar(800, 600, "Meu Jogo")
+
+// Jogador
+jogador = Jogo.sprite(jogo, "personagem.png", 50, 50)
+jogador.velocidade = 5
+
+// Controles
+Jogo.tecla("esquerda", () => jogador.x -= jogador.velocidade)
+Jogo.tecla("direita", () => jogador.x += jogador.velocidade)
+Jogo.tecla("espaco", () => {{
+    if jogador.esta_no_chao
+        jogador.velocidade_y = -10
+        jogador.esta_no_chao = falso
+    fim
+}})
+
+// Loop
+Jogo.loop(jogo, () => {{
+    jogador.y += jogador.velocidade_y
+    jogador.velocidade_y += 0.5
+    if jogador.y >= 500
+        jogador.y = 500
+        jogador.esta_no_chao = verdadeiro
+    fim
+    Jogo.renderizar(jogador)
+}})
+
+Jogo.iniciar(jogo)
+""",
+                'criar_site': lambda config: f"""// Site {config.get('titulo', 'Meu Site')}
+importar biblioteca Web
+
+{chr(10).join([f'Web.rota("/{pagina}", (req, res) => {{ res.html("<h1>{pagina.capitalize()}</h1>") }})' for pagina in config.get('paginas', ['home', 'sobre', 'contato'])])}
+
+Web.servidor({config.get('porta', 3000)}).iniciar()
+exibir: '🌐 Site rodando em http://localhost:{config.get('porta', 3000)}'
+""",
+                'criar_bot': lambda plataforma, config: f"""// Bot para {plataforma}
+importar biblioteca Rede
+
+{chr(10).join([f'// TODO: Implementar bot para {plataforma}'])}
+exibir: '🤖 Bot {plataforma} em desenvolvimento'
+""",
+                'criar_cli': lambda config: f"""// CLI {config.get('nome', 'app')}
+args = Sistema.argv()
+
+funcao mostrar_ajuda() {{
+    exibir: "Comandos disponíveis:"
+    {chr(10).join([f'    exibir: "  {cmd} - {desc}"' for cmd, desc in config.get('comandos', {'help': 'Mostra ajuda', 'version': 'Mostra versão'}).items()])}
+}}
+
+if args.tamanho == 0
+    mostrar_ajuda()
+else
+    escolha args[0]
+        {chr(10).join([f'        caso "{cmd}": exibir: "Executando {cmd}..."' for cmd in config.get('comandos', {'help': 'Mostra ajuda'}).keys()])}
+        padrao: exibir: "Comando desconhecido"
+    fim
+fim
+""",
             },
             
             # Jogo
             'Jogo': {
-                'criar': lambda w=800, h=600, t='Jogo': {'largura': w, 'altura': h, 'titulo': t, 'sprites': []},
-                'sprite': lambda jogo, img, x=0, y=0: {'imagem': img, 'x': x, 'y': y},
-                'iniciar': lambda jogo: print(f'🎮 Iniciando: {jogo["titulo"]}'),
-                'loop': lambda jogo, func: func() if callable(func) else None,
+                'criar': lambda w=800, h=600, t='Jogo': {'largura': w, 'altura': h, 'titulo': t, 'sprites': [], 'fisica': None, 'loop': None},
+                'sprite': lambda jogo, img, x=0, y=0: {'imagem': img, 'x': x, 'y': y, 'largura': 50, 'altura': 50, 'velocidade': 5, 'velocidade_y': 0, 'esta_no_chao': True},
+                'tecla': lambda tecla, func: func,
+                'loop': lambda jogo, func: (jogo.__setitem__('loop', func), jogo)[1],
+                'renderizar': lambda sprite: sprite,
+                'fundo': lambda cor: print(f'🎨 Fundo: {cor}'),
+                'texto': lambda texto, x, y, cor: print(f'📝 Texto: {texto} em ({x},{y}) cor:{cor}'),
+                'fisica': lambda jogo, g: (jogo.__setitem__('fisica', {'gravidade': g}), jogo)[1],
+                'colisao': lambda obj1, obj2, func: func,
+                'iniciar': lambda jogo: (print(f'🎮 Iniciando: {jogo["titulo"]}'), jogo)[1],
+                'pausar': lambda jogo: (print('⏸️ Pausado'), jogo)[1],
+                'continuar': lambda jogo: (print('▶️ Continuado'), jogo)[1],
+                'finalizar': lambda jogo: (print('🏁 Finalizado'), jogo)[1],
+                'som': lambda arquivo, volume: print(f'🔊 Som: {arquivo} (volume: {volume})'),
+                'musica': lambda arquivo, volume: print(f'🎵 Música: {arquivo} (volume: {volume})'),
             },
             
             # Web
@@ -428,6 +686,12 @@ class NullScriptInterpreter:
                 'rota': lambda path, handler: handler,
                 'html': lambda content: f'<html>{content}</html>',
                 'json': lambda data: json.dumps(data),
+                'css': lambda content: f'<style>{content}</style>',
+                'js': lambda content: f'<script>{content}</script>',
+                'static': lambda pasta: print(f'📁 Pasta estática: {pasta}'),
+                'session': lambda chave, valor: {chave: valor},
+                'cookie': lambda nome, valor: {nome: valor},
+                'template': lambda arquivo, dados: print(f'📄 Template: {arquivo}'),
             }
         }
     
@@ -436,18 +700,25 @@ class NullScriptInterpreter:
         inicio = time.time()
         self.historico.append(codigo)
         self.arquivo_atual = arquivo
+        self.erros_encontrados = []
         
         try:
             if self.auto_corrigir:
                 corrigido = self.ia.corrigir(codigo)
                 if corrigido != codigo and self.debug:
                     print('[IA] Código corrigido')
+                    # Mostrar correções
+                    if hasattr(self.ia, 'erros_detectados') and self.ia.erros_detectados:
+                        print('[IA] Correções aplicadas:')
+                        for erro in self.ia.erros_detectados[:5]:
+                            print(f'  • {erro}')
                 codigo = corrigido
             
             resultado = self.interpretar(codigo)
             return resultado
         except Exception as erro:
-            print(f'❌ Erro na linha {self.linha_atual}: {erro}')
+            self.erros_encontrados.append(str(erro))
+            print(f'❌ Erro: {erro}')
             if self.auto_corrigir:
                 print('[IA] Tentando corrigir...')
                 try:
@@ -465,6 +736,7 @@ class NullScriptInterpreter:
         bloco = []
         bloco_tipo = ''
         bloco_condicao = ''
+        bloco_indent = 0
         
         for i, linha in enumerate(linhas):
             self.linha_atual = i + 1
@@ -479,11 +751,15 @@ class NullScriptInterpreter:
                 bloco_tipo = linha_trim.split()[0]
                 bloco_condicao = linha_trim
                 bloco = []
+                bloco_indent = len(linha) - len(linha.lstrip())
                 continue
             
             if re.match(r'^(fim|end|})', linha_trim, re.IGNORECASE):
                 em_bloco = False
-                resultado = self.executar_bloco(bloco_tipo, bloco_condicao, bloco)
+                try:
+                    resultado = self.executar_bloco(bloco_tipo, bloco_condicao, bloco)
+                except Exception as e:
+                    print(f'⚠️ Erro no bloco: {e}')
                 continue
             
             if em_bloco:
@@ -496,6 +772,12 @@ class NullScriptInterpreter:
                 if self.modo_aprendiz:
                     print(f'[IA] Erro na linha {i+1}: {e}')
                     print(f'[IA] Sugestão: {self.ia.perguntar(str(e))}')
+                else:
+                    # Mostrar erro simples
+                    erro_msg = str(e)
+                    if not erro_msg or 'None' in erro_msg:
+                        erro_msg = 'Erro de sintaxe'
+                    print(f'⚠️ Erro na linha {i+1}: {erro_msg}')
                 raise
         
         return resultado
@@ -517,11 +799,30 @@ class NullScriptInterpreter:
     
     def executar_se(self, condicao: str, bloco: str) -> Any:
         """Executa estrutura condicional"""
-        cond = re.sub(r'^se\s*:?\s*', '', condicao, flags=re.IGNORECASE).strip()
-        resultado = self.avaliar_expressao(cond)
-        if resultado:
-            return self.interpretar(bloco)
-        return None
+        # Remover 'se' e 'entao'
+        cond = re.sub(r'^se\s*:?\s*', '', condicao, flags=re.IGNORECASE)
+        cond = re.sub(r'\s+ent[aã]o\s*$', '', cond, flags=re.IGNORECASE)
+        cond = cond.strip()
+        
+        # Substituir 'for igual a' por '=='
+        cond = re.sub(r'\bfor\s+igual\s+a\b', '==', cond, flags=re.IGNORECASE)
+        cond = re.sub(r'\bé\s+igual\s+a\b', '==', cond, flags=re.IGNORECASE)
+        cond = re.sub(r'\bfor\s+diferente\s+de\b', '!=', cond, flags=re.IGNORECASE)
+        cond = re.sub(r'\bé\s+diferente\s+de\b', '!=', cond, flags=re.IGNORECASE)
+        cond = re.sub(r'\bmaior\s+que\b', '>', cond, flags=re.IGNORECASE)
+        cond = re.sub(r'\bmenor\s+que\b', '<', cond, flags=re.IGNORECASE)
+        cond = re.sub(r'\bmaior\s+ou\s+igual\b', '>=', cond, flags=re.IGNORECASE)
+        cond = re.sub(r'\bmenor\s+ou\s+igual\b', '<=', cond, flags=re.IGNORECASE)
+        
+        try:
+            resultado = self.avaliar_expressao(cond)
+            if resultado:
+                return self.interpretar(bloco)
+            return None
+        except Exception as e:
+            print(f'⚠️ Erro na condição: {cond}')
+            print(f'   {e}')
+            return None
     
     def executar_enquanto(self, condicao: str, bloco: str) -> Any:
         """Executa loop enquanto"""
@@ -545,14 +846,22 @@ class NullScriptInterpreter:
     
     def executar_para(self, condicao: str, bloco: str) -> Any:
         """Executa loop para"""
+        # Para i de 1 ate 10 passo 1
         match = re.match(r'para\s+(\w+)\s+de\s+(\d+)\s+ate\s+(\d+)(?:\s+passo\s+(\d+))?', condicao, re.IGNORECASE)
         if not match:
-            return None
+            match = re.match(r'para\s+(\w+)\s*=\s*(\d+)\s+ate\s+(\d+)', condicao, re.IGNORECASE)
+            if not match:
+                return None
         
-        var, inicio, fim, passo = match.groups()
+        if len(match.groups()) == 4:
+            var, inicio, fim, passo = match.groups()
+            passo = int(passo) if passo else 1
+        else:
+            var, inicio, fim = match.groups()
+            passo = 1
+        
         inicio = int(inicio)
         fim = int(fim)
-        passo = int(passo) if passo else 1
         resultado = None
         
         self.variaveis[var] = inicio
@@ -651,8 +960,11 @@ class NullScriptInterpreter:
         return self.avaliar_expressao(linha)
     
     def processar_exibir(self, linha: str) -> str:
-        """Processa comando exibir"""
+        """Processa comando exibir - remove aspas automaticamente"""
+        # Extrair conteúdo após exibir:
         texto = re.sub(r'^(exibir|mostrar|print)\s*:?\s*', '', linha)
+        
+        # Remover aspas se existirem
         texto = re.sub(r'^["\']|["\']$', '', texto)
         
         # Interpolação
@@ -663,7 +975,13 @@ class NullScriptInterpreter:
         texto = re.sub(r'\$\{([^}]+)\}', substituir_var, texto)
         texto = re.sub(r'\{([^}]+)\}', substituir_var, texto)
         
-        print(texto)
+        # Avaliar expressões dentro de ()
+        texto = re.sub(r'\(([^)]+)\)', lambda m: str(self.avaliar_expressao(m.group(1))), texto)
+        
+        # Remover espaços extras e imprimir
+        texto = texto.strip()
+        if texto:
+            print(texto)
         return texto
     
     def processar_perguntar(self, linha: str) -> str:
@@ -683,24 +1001,33 @@ class NullScriptInterpreter:
     
     def processar_declaracao(self, linha: str) -> Any:
         """Processa declaração de variável"""
+        # Remove ponto e vírgula
+        linha = linha.replace(';', '').strip()
+        
+        # Padrão: crie variável, nome X, valor Y
         match = re.match(r'(?:crie|criar|var|let|declare)\s+(?:variavel\s*,\s*nome\s*)?(\w+)(?:\s*,\s*valor\s*)?\s*=\s*(.+)', linha, re.IGNORECASE)
         if not match:
+            # Padrão: var x = 10
             match = re.match(r'(?:var|let)\s+(\w+)\s*=\s*(.+)', linha, re.IGNORECASE)
             if not match:
+                # Padrão: x = 10 (detectado em atribuição)
                 return None
         
         nome, valor = match.groups()
-        self.variaveis[nome] = self.avaliar_expressao(valor.strip())
+        valor_avaliado = self.avaliar_expressao(valor.strip())
+        self.variaveis[nome] = valor_avaliado
         return self.variaveis[nome]
     
     def processar_atribuicao(self, linha: str) -> Any:
         """Processa atribuição simples"""
+        linha = linha.replace(';', '').strip()
         match = re.match(r'^(\w+)\s*=\s*(.+)', linha)
         if not match:
             return None
         
         nome, valor = match.groups()
-        self.variaveis[nome] = self.avaliar_expressao(valor.strip())
+        valor_avaliado = self.avaliar_expressao(valor.strip())
+        self.variaveis[nome] = valor_avaliado
         return self.variaveis[nome]
     
     def processar_constante(self, linha: str) -> Any:
@@ -729,6 +1056,11 @@ class NullScriptInterpreter:
         nome = match.group(1)
         self.importacoes[nome] = True
         
+        # Verificar se é CorretorAuto (case insensitive)
+        if nome.lower() == 'corretorauto':
+            self.variaveis['IA'] = self.ia
+            self.variaveis['CorretorAuto'] = self.ia
+        
         if nome in self.bibliotecas:
             self.variaveis[nome] = self.bibliotecas[nome]
             return self.bibliotecas[nome]
@@ -737,6 +1069,7 @@ class NullScriptInterpreter:
     
     def processar_chamada_funcao(self, linha: str) -> Any:
         """Processa chamada de função"""
+        linha = linha.replace(';', '').strip()
         match = re.match(r'(\w+)\s*\(([^)]*)\)', linha)
         if not match:
             return None
@@ -747,7 +1080,7 @@ class NullScriptInterpreter:
         # Funções nativas
         nativas = {
             'tipo': lambda v: type(v).__name__,
-            'numero': lambda v: float(v) if '.' in str(v) else int(v),
+            'numero': lambda v: float(v) if '.' in str(v) else int(v) if v else 0,
             'texto': str,
             'lista': lambda *v: list(v),
             'aleatorio': random.random,
@@ -827,23 +1160,40 @@ class NullScriptInterpreter:
         
         # Expressões matemáticas
         try:
-            return eval(expr, {'__builtins__': {}}, self.variaveis)
+            # Substituir variáveis na expressão
+            expr_avaliada = expr
+            for var, val in self.variaveis.items():
+                if isinstance(val, (int, float)):
+                    expr_avaliada = re.sub(rf'\b{var}\b', str(val), expr_avaliada)
+            return eval(expr_avaliada, {'__builtins__': {}}, {})
         except:
             return expr
     
     def executar_arquivo(self, caminho: str) -> Any:
-        """Executa um arquivo .ns"""
+        """Executa um arquivo .ns sem mostrar mensagem de execução"""
         try:
             caminho_abs = os.path.abspath(caminho)
             if not os.path.exists(caminho_abs):
                 print(f'❌ Arquivo não encontrado: {caminho}')
                 return None
-            
+
             codigo = open(caminho_abs, 'r', encoding='utf-8').read()
-            print(f'📄 Executando: {caminho}')
+            
+            # Verificar se o código tem erros antes de executar
+            if self.auto_corrigir:
+                codigo_corrigido = self.ia.corrigir(codigo)
+                if codigo_corrigido != codigo and self.ia.erros_detectados:
+                    # Mostrar correções
+                    print('[IA] Correções aplicadas:')
+                    for erro in self.ia.erros_detectados[:5]:
+                        print(f'  • {erro}')
+                    codigo = codigo_corrigido
+            
+            # Executar sem mensagem de "Executando"
             return self.executar(codigo, caminho_abs)
+            
         except Exception as e:
-            print(f'❌ Erro ao executar arquivo: {e}')
+            print(f'❌ Erro: {e}')
             return None
 
 
@@ -880,6 +1230,12 @@ class NullScriptCLI:
             self.gerar_documentacao(args[1:])
         elif comando == '--compile':
             self.compilar(args[1:])
+        elif comando == '--silent':
+            self.interpreter.modo_silencioso = True
+            if len(args) > 1:
+                self.executar_arquivo(args[1])
+            else:
+                print('❌ Especifique um arquivo')
         else:
             self.executar_arquivo(comando)
     
@@ -897,9 +1253,10 @@ class NullScriptCLI:
   nullscript --repl              Modo interativo (REPL)
   nullscript --help              Mostra esta ajuda
   nullscript --version           Mostra a versão
-  nullscript --ia <arquivo>      Executa com IA ativa
+  nullscript --ia <arquivo>      Executa com IA ativada
   nullscript --doc <arquivo>     Gera documentação
   nullscript --compile <arquivo> Compila para Python
+  nullscript --silent <arquivo>  Executa sem mensagens extras
 
 📝 EXEMPLOS:
   nullscript exemplo.ns          Executa o arquivo
@@ -912,6 +1269,7 @@ class NullScriptCLI:
   --debug      Modo debug
   --doc        Gera documentação
   --compile    Compila para Python
+  --silent     Executa sem mensagens extras
 
 📚 BIBLIOTECAS NATIVAS:
   CorretorAuto  Matematica  Arquivos  Criptografia
@@ -920,20 +1278,22 @@ class NullScriptCLI:
   Web
 
 💡 DICAS:
-  - Use "exibir:" para mostrar algo
-  - Use "perguntar:" para entrada
+  - Use "exibir:" para mostrar algo (aspas opcionais)
+  - Use "perguntar:" para entrada do usuário
   - Use "importar biblioteca X" para carregar bibliotecas
   - A IA pode corrigir seu código automaticamente
+  - Indentação é importante para blocos de código
 
 🌐 REPOSITÓRIO:
   {REPOSITORIO}
         """)
     
     def executar_arquivo(self, caminho: str):
-        """Executa um arquivo"""
+        """Executa um arquivo sem mensagem de execução"""
         if not caminho.endswith('.ns') and not caminho.endswith('.null'):
             print(f'⚠️ Arquivo sem extensão .ns: {caminho}')
         
+        # Executar sem mensagem extra
         self.interpreter.executar_arquivo(caminho)
     
     def iniciar_repl(self):
@@ -943,6 +1303,7 @@ class NullScriptCLI:
 📖 Digite "help" para ajuda
 📖 Digite "sair" para sair
 🔧 IA ativa: {self.interpreter.auto_corrigir}
+💡 Aspas são opcionais em exibir
         """)
         
         while True:
@@ -1062,6 +1423,8 @@ Comandos disponíveis:
   Linhas: {analise['linhas']}
   Caracteres: {analise['caracteres']}
   Funções: {analise['funcoes']}
+  Variáveis: {', '.join(analise['variaveis']) if analise['variaveis'] else 'Nenhuma'}
+  Importações: {', '.join(analise['importacoes']) if analise['importacoes'] else 'Nenhuma'}
 
 🔧 ESTRUTURAS:
   Se: {analise['estruturas']['se']}
@@ -1155,6 +1518,7 @@ ns = NullScriptRuntime()
             # Se
             elif linha_trim.startswith('se'):
                 cond = linha_trim.replace('se', '').strip()
+                cond = cond.replace('entao', '').strip()
                 python_linhas.append(' ' * indent + f'if {cond}:')
                 indent += 4
             
